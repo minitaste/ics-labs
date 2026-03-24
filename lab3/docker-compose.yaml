@@ -1,0 +1,71 @@
+version: "3.8"
+services:
+  python-app:
+    build: ./app
+    container_name: python-app
+    volumes:
+      - logs:/logs
+    networks:
+      - elk
+    environment:
+      - LOG_LEVEL=DEBUG
+    ports:
+      - "5500:5500"
+
+  filebeat:
+    build: ./filebeat
+    container_name: filebeat
+    volumes:
+      - logs:/logs
+    networks:
+      - elk
+    depends_on:
+      - python-app
+      - logstash
+    restart: on-failure
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ports:
+      - "9200:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    networks:
+      - elk
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.1
+    container_name: logstash
+    ports:
+      - "5044:5044"
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+    depends_on:
+      - elasticsearch
+    networks:
+      - elk
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.1
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - elk
+
+volumes:
+  logs:
+  es-data:
+
+networks:
+  elk:
+    driver: bridge
