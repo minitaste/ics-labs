@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=decac58c86f2faa2922577e4cc978134
+      - XPACK_REPORTING_ENCRYPTIONKEY=438750b3e46a4825a3a3ce4d2705c31f
+      - XPACK_SECURITY_ENCRYPTIONKEY=cd73a28d4c8e23565b30319a065e0271
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    volumes:
+      - ./logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - suricata-logs:/var/log/suricata  # ← додай це
+    depends_on:
+      - elasticsearch
+
+  vulnerable-app:
+    image: vulnerables/web-dvwa
+    ports:
+      - "8080:80"
+
+  attacker:
+    image: kalilinux/kali-rolling
+    tty: true
+
+  suricata:
+    image: jasonish/suricata:latest
+    cap_add:
+      - NET_ADMIN
+      - SYS_NICE
+      - NET_RAW
+    networks:
+      - default
+    volumes:
+      - ./suricata:/etc/suricata
+      - /var/log/suricata:/var/log/suricata
+      - suricata-logs:/var/log/suricata  # ← і це
+
+    command: -i eth0 --set af-packet.0.interface=eth0
+
+volumes:
+  suricata-logs: 
